@@ -101,17 +101,32 @@ sudo usermod -aG docker $USER
 
 ### Gazebo GUI not showing
 
-Ensure X11 forwarding is set up:
+On systems without a GPU (no `/dev/dri`), Gazebo's 3D view won't render even with X11 forwarding. You have two options:
 
+**Option 1 — Headless mode (no GUI, only physics):**
+```bash
+./launch.sh --headless
+# or manually:
+HEADLESS=1 make px4_sitl gz_x500
+```
+
+PX4 and the ROS2 bridge work identically in headless mode — you just won't see the 3D scene. You can still interact with the drone via ROS2 topics, `px4-gazebo` CLI, or QGroundControl.
+
+**Option 2 — Software rendering (slow GUI, try first):**
 ```bash
 # On host
 xhost +local:docker
 export DISPLAY=:0
+
+# Inside container, before launching (or use launch.sh without --headless):
+export LIBGL_ALWAYS_SOFTWARE=1
 ```
+
+This forces Mesa's `llvmpipe` software renderer — the GUI will appear but will be very slow (1-5 FPS). Works for basic visual checks.
 
 ### `/dev/dri` not found
 
-On ARM systems or systems without a GPU, comment out the `devices` section in `docker-compose.yml`:
+On ARM systems or systems without a GPU, comment out the `devices` section in `docker-compose.yml` (already done):
 
 ```yaml
 # devices:
