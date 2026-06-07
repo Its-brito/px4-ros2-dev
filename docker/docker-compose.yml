@@ -14,13 +14,16 @@ x-base: &base
   stdin_open: true
   tty: true
   working_dir: /home/devuser/shared_volume
+  mem_limit: 6g
+  memswap_limit: 6g
+  oom_kill_disable: false
 
 services:
   px4-ros2:
     <<: *base
     container_name: px4-ros2-dev
-    devices:
-      - /dev/dri:/dev/dri
+    # devices:
+    #   - /dev/dri:/dev/dri
 
   px4-ros2-gpu:
     <<: *base

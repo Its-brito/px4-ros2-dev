@@ -1,6 +1,11 @@
-FROM osrf/ros:humble-desktop-full
+FROM ros:humble-ros-base
 
-ARG DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Additional ROS 2 desktop packages (replaces osrf/ros:humble-desktop-full)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-humble-desktop \
+        && rm -rf /var/lib/apt/lists/*
 
 # Install base tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -67,7 +72,7 @@ RUN git clone --branch v2.4.3 --depth 1 https://github.com/eProsima/Micro-XRCE-D
     && cd /tmp/Micro-XRCE-DDS-Agent \
     && mkdir build && cd build \
     && cmake .. \
-    && make -j$(nproc) \
+    && make -j2 \
     && make install \
     && ldconfig \
     && rm -rf /tmp/Micro-XRCE-DDS-Agent
@@ -88,6 +93,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Clean up
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create home directory for runtime user
+RUN mkdir -p /home/devuser
 
 # Copy entrypoint
 COPY entrypoint.sh /entrypoint.sh
