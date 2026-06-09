@@ -3,14 +3,19 @@ x-base: &base
     context: .
     dockerfile: Dockerfile
   environment:
-    - DISPLAY=${DISPLAY}
+    - DISPLAY=${DISPLAY:-:0}
     - HOST_UID=${HOST_UID:-1000}
     - HOST_GID=${HOST_GID:-1000}
     - QT_X11_NO_MITSHM=1
+    - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}
+    - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}
   volumes:
     - ../shared_volume:/home/devuser/shared_volume
     - /tmp/.X11-unix:/tmp/.X11-unix:rw
+  devices:
+    - /dev/dri:/dev/dri
   network_mode: host
+  ipc: host
   stdin_open: true
   tty: true
   working_dir: /home/devuser/shared_volume
@@ -22,8 +27,6 @@ services:
   px4-ros2:
     <<: *base
     container_name: px4-ros2-dev
-    # devices:
-    #   - /dev/dri:/dev/dri
 
   px4-ros2-gpu:
     <<: *base

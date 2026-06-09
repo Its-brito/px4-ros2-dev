@@ -1,18 +1,56 @@
 # PX4-ROS2-Gazebo Development Environment
 
-Docker-based development environment for PX4 SITL + ROS 2 Humble + Gazebo Harmonic on resource-constrained machines (8GB RAM).
+Docker-based development environment for PX4 SITL + ROS 2 Humble + Gazebo Harmonic, designed to run on resource-constrained machines (8GB RAM).
 
 Includes support for custom airframes such as the **Swan K-1 HWing** (VTOL quad tailsitter).
 
 ## Prerequisites
 
-- Docker (with `sudo` access or docker group membership)
-- An X11 server (for GUI forwarding)
-- At least 15GB free disk space
+### Host Machine
 
-## Quick Start
+- **Docker Engine** v20.10+ with `docker compose` plugin (v2)
+- **X11 server** (for Gazebo GUI forwarding)
+- **At least 15GB** free disk space
+- **At least 8GB** RAM (6GB container limit configured)
+- **sudo access** (for Docker, X11 config, optional swap setup)
 
-### 1. Build the Docker Image
+### GPU Support (Optional)
+
+| GPU Type | Requirement |
+|----------|-------------|
+| Intel / AMD | Kernel-mode driver (`/dev/dri`) — usually included out of the box |
+| NVIDIA | Proprietary driver + `nvidia-container-toolkit` (see [setup script](docker/scripts/setup-linux-nvidia.sh)) |
+
+## Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone git@github.com:Its-brito/px4-ros2-dev.git
+cd px4-ros2-dev
+```
+
+### 2. Host Setup
+
+#### Allow X11 forwarding
+
+```bash
+xhost +local:docker
+```
+
+To make this permanent, add it to your shell profile (`~/.bashrc` or `~/.zshrc`).
+
+#### (NVIDIA only) Install nvidia-container-toolkit
+
+Run the included setup script:
+
+```bash
+cd docker && bash scripts/setup-linux-nvidia.sh && cd ..
+```
+
+This installs `nvidia-container-toolkit`, configures the Docker runtime, and restarts Docker.
+
+### 3. Build the Docker Image
 
 ```bash
 cd docker
@@ -21,22 +59,32 @@ docker compose build px4-ros2
 
 The build uses `make -j2` to limit parallel compilation, preventing OOM kills on low-memory machines. The running container is capped at 6GB via `mem_limit`.
 
-### 2. Run the Container
+> **Note:** The image is ~6GB. On a slow connection, this may take 30–60 minutes.
+
+### 4. Run the Container
+
+#### CPU / Intel / AMD GPU
 
 ```bash
-HOST_UID=$(id -u) HOST_GID=$(id -g) sudo -E docker compose -f docker/docker-compose.yml run --rm -it px4-ros2
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker/docker-compose.yml run --rm -it px4-ros2
 ```
 
-Run in background:
+#### NVIDIA GPU
 
 ```bash
-sudo docker compose -f docker/docker-compose.yml up -d px4-ros2
-sudo docker exec -it px4-ros2-dev bash
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker/docker-compose.yml --profile gpu run --rm -it px4-ros2-gpu
 ```
 
-### 3. Setup PX4 and ROS2
+#### Run in background (detached)
 
-Inside the container, run the setup script. This clones and builds PX4-Autopilot, the ROS2 bridge, and optionally integrates custom airframe models (like Swan K1).
+```bash
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose -f docker/docker-compose.yml up -d px4-ros2
+docker exec -it px4-ros2-dev bash
+```
+
+### 5. Setup PX4 and ROS2 (inside the container)
+
+Run the setup script. This clones and builds PX4-Autopilot, the ROS2 bridge, and optionally integrates custom airframe models.
 
 ```bash
 cd ~/shared_volume
@@ -48,7 +96,7 @@ cd ~/shared_volume
 ./setup.sh swan_k1_hwing
 ```
 
-### 4. Launch Simulation
+### 6. Launch Simulation
 
 ```bash
 # Default x500 quadcopter
@@ -69,7 +117,7 @@ This opens a tmux session with three windows:
 | 1 (Agent) | `MicroXRCEAgent udp4 -p 8888` |
 | 2 (Bridge) | `ros2 launch px4_ros_com px4_ros_com_launch.py` |
 
-**tmux cheatsheet**: `Ctrl+B` then arrow keys to switch windows, `Ctrl+B 0/1/2` to jump directly.
+**tmux cheatsheet:** `Ctrl+B` then arrow keys to switch windows, `Ctrl+B 0/1/2` to jump directly.
 
 ## Swan K-1 HWing Model
 
@@ -94,18 +142,23 @@ The airframe type is `VTOL Quad Tailsitter` (`CA_AIRFRAME=4`) with 4 rotors and 
 ```
 px4-ros2-dev/
 ├── docker/
-│   ├── Dockerfile           # ROS2 Humble + Gazebo Harmonic + PX4 deps
-│   ├── docker-compose.yml   # Container config with memory limits
-│   ├── entrypoint.sh        # User namespace setup
-│   └── .dockerignore
-├── shared_volume/           # Mounted into container at /home/devuser/shared_volume
-│   ├── setup.sh             # Clone & build script
-│   ├── launch.sh            # tmux launch script
-│   ├── PX4-Autopilot/       # PX4 firmware (built here)
-│   ├── px4_ros2_ws/         # ROS2 workspace
-│   └── SITL_Models/         # ArduPilot SITL models (asset source)
+│   ├── Dockerfile             # ROS2 Humble + Gazebo Harmonic + PX4 deps
+│   ├── docker-compose.yml     # Container config (GUI, GPU, memory limits)
+│   ├── entrypoint.sh          # User namespace setup (UID/GID mapping)
+│   ├── .dockerignore
+│   └── scripts/
+│       ├── setup-linux-nvidia.sh  # NVIDIA container toolkit installer
+│       └── setup-chromeos.sh      # ChromeOS-specific setup
+├── shared_volume/             # Mounted into container at ~/shared_volume
+│   ├── setup.sh               # Clone & build PX4 + ROS2 workspace
+│   ├── launch.sh              # tmux session launcher
+│   ├── PX4-Autopilot/         # PX4 firmware (built inside container)
+│   ├── px4_ros2_ws/           # ROS2 workspace (px4_msgs, px4_ros_com)
+│   └── SITL_Models/           # ArduPilot SITL models (asset source)
 └── README.md
 ```
+
+> `shared_volume/` is gitignored — each developer populates it by running `setup.sh` inside the container.
 
 ## Troubleshooting
 
@@ -117,7 +170,8 @@ The build already uses `-j2`. If still OOM-killed:
 # Ensure swap is enabled
 sudo swapon --show
 # If empty, add a 4GB swap file
-sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
 ```
 
 ### Gazebo GUI not showing
@@ -132,19 +186,35 @@ Or try software rendering:
 
 ```bash
 export LIBGL_ALWAYS_SOFTWARE=1
+./launch.sh
 ```
 
 ### Permissions
 
 ```bash
-# Add user to docker group
+# Add user to docker group (log out and back in after)
 sudo usermod -aG docker $USER
-# log out and back in
 
-# Or use xhost for GUI
+# Or allow X11 forwarding for Docker containers
 xhost +local:docker
 ```
 
 ### `/dev/dri` not found
 
-On ARM systems, the `devices` section is already commented out in `docker-compose.yml`.
+On ARM or virtual machines without GPU passthrough, remove or comment out the `devices` section in `docker/docker-compose.yml`:
+
+```yaml
+# devices:
+#   - /dev/dri:/dev/dri
+```
+
+### Portability to another Linux machine
+
+1. Install Docker Engine + `docker compose` plugin
+2. Clone this repo: `git clone git@github.com:Its-brito/px4-ros2-dev.git`
+3. Run `xhost +local:docker` for GUI forwarding
+4. Build the image: `docker compose build px4-ros2`
+5. Run the container (see step 4 above)
+6. Inside the container, run `./setup.sh` followed by `./launch.sh`
+
+No host packages beyond Docker are required — all dependencies are inside the container.
